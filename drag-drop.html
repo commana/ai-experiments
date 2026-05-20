@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UX Drag and Drop - Enterprise Production Ready</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --block-bg: #f1f5f9;
+            --block-border: #e2e8f0;
+            --card-bg: #ffffff;
+            --accent-color: #3b82f6;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 3rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            color: var(--text-main);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 550px;
+        }
+
+        .block {
+            background-color: var(--block-bg);
+            border: 2px solid var(--block-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            min-height: 90px; /* Garantiert Dropzone-Fläche bei leeren Blöcken */
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        /* UX: Sanftes Aufleuchten des gesamten Blocks, wenn ein Element darüber gehalten wird */
+        .block.drag-over {
+            background-color: #edf2f7;
+            border-color: var(--accent-color);
+        }
+
+        .block h2 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 60px;
+        }
+
+        .item {
+            background-color: var(--card-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none; /* Safari Fix: Verhindert Textauswahl beim schnellen Ziehen */
+            transition: box-shadow 0.15s ease;
+        }
+
+        .item:active {
+            cursor: grabbing;
+        }
+
+        /* UX: Zustand des Elements im Ursprungsblock WÄHREND des Ziehens */
+        .item.dragging {
+            opacity: 0.3;
+            border: 1px dashed var(--accent-color);
+            box-shadow: none;
+        }
+
+        /* UX: Der visuelle Indikator (Vorschau), wo das Element landen wird */
+        .placeholder {
+            background-color: rgba(59, 130, 246, 0.06);
+            border: 2px dashed var(--accent-color);
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Optimiertes Desktop Drag & Drop</h1>
+
+    <div class="container">
+        <!-- Block 1: 3 Einträge -->
+        <div class="block">
+            <h2>Block Eins (Priorität Hoch)</h2>
+            <div class="list">
+                <div class="item" draggable="true">Eintrag 1: Konzept finalisieren</div>
+                <div class="item" draggable="true">Eintrag 2: UI Design Review</div>
+                <div class="item" draggable="true">Eintrag 3: Tech-Stack evaluieren</div>
+            </div>
+        </div>
+
+        <!-- Block 2: 2 Einträge -->
+        <div class="block">
+            <h2>Block Zwei (In Arbeit)</h2>
+            <div class="list">
+                <div class="item" draggable="true">Eintrag 4: Boilerplate aufsetzen</div>
+                <div class="item" draggable="true">Eintrag 5: Routing implementieren</div>
+            </div>
+        </div>
+
+        <!-- Block 3: 1 Eintrag -->
+        <div class="block">
+            <h2>Block Drei (Erledigt)</h2>
+            <div class="list">
+                <div class="item" draggable="true">Eintrag 6: Repository erstellen</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const lists = document.querySelectorAll('.list');
+        const blocks = document.querySelectorAll('.block');
+        
+        let draggingElement = null;
+        let placeholder = document.createElement('div');
+        placeholder.classList.add('placeholder');
+
+        // 1. EVENT-LISTENER FÜR DIE ELEMENTE (START & ENDE)
+        lists.forEach(list => {
+            list.addEventListener('dragstart', (e) => {
+                if (e.target.classList.contains('item')) {
+                    draggingElement = e.target;
+                    
+                    // Firefox Fix: Ohne setData verweigert Firefox oft das Dragging gänzlich
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', draggingElement.textContent || '');
+
+                    // Dynamisch die Höhe des Platzhalters an das gezogene Element anpassen
+                    placeholder.style.height = `${draggingElement.offsetHeight}px`;
+                    
+                    // Safari Fix: Erst den Ghost rendern, danach das Element im Block via Opacity ausblenden
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            if (draggingElement) draggingElement.classList.add('dragging');
+                        });
+                    });
+                }
+            });
+
+            list.addEventListener('dragend', () => {
+                if (draggingElement) {
+                    draggingElement.classList.remove('dragging');
+                    
+                    // Platzhalter final durch das echte Element ersetzen
+                    if (placeholder.parentNode) {
+                        placeholder.parentNode.replaceChild(draggingElement, placeholder);
+                    }
+                    draggingElement = null;
+                }
+                // Bereinigung des visuellen Feedbacks
+                blocks.forEach(b => b.classList.remove('drag-over'));
+            });
+        });
+
+        // 2. EVENT-LISTENER FÜR DIE BLÖCKE (ZENTRALE DROPZONESTEUERUNG)
+        blocks.forEach(block => {
+            block.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                block.classList.add('drag-over');
+            });
+
+            block.addEventListener('dragleave', (e) => {
+                // Safari-sicher: Nur entfokussieren, wenn wir den Block wirklich verlassen
+                if (!block.contains(e.relatedTarget)) {
+                    block.classList.remove('drag-over');
+                }
+            });
+
+            // Optimierter Dropzone-Zentralismus: Fängt auch Header und Padding des Blocks ab
+            block.addEventListener('dragover', (e) => {
+                e.preventDefault(); // Ermöglicht das Droppen überhaupt erst
+                
+                const list = block.querySelector('.list');
+                if (!list) return;
+
+                // Ermittle mathematisch das korrekte Element auf der Y-Achse
+                const afterElement = getDragAfterElement(list, e.clientY);
+                
+                if (afterElement == null) {
+                    list.appendChild(placeholder);
+                } else {
+                    list.insertBefore(placeholder, afterElement);
+                }
+            });
+        });
+
+        /**
+         * Berechnet, welches Element der Maus auf der Y-Achse am nächsten ist.
+         */
+        function getDragAfterElement(list, y) {
+            // Alle echten Items ermitteln (ignoriere gezogenes Element & Platzhalter)
+            const draggableElements = [...list.querySelectorAll('.item:not(.dragging):not(.placeholder)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+    </script>
+</body>
+</html>

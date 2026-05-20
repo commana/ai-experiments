@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Desktop Editor</title>
+    <style>
+        /* Minimalistisches, modernes UI-Styling */
+        * {
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+        .header {
+            background-color: #ffffff;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1rem;
+            color: #333;
+            font-weight: 500;
+        }
+        .stats {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        /* Editor-Container nimmt den restlichen Platz ein */
+        #editor-container {
+            flex-grow: 1;
+            width: 100%;
+            overflow: hidden;
+            background-color: #fff;
+        }
+        /* CodeMirror spezifische Anpassungen für das "Desktop-Gefühl" */
+        .cm-editor {
+            height: 100% !important;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+        .cm-scroller {
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Markdown Desktop-Editor (High Performance)</h1>
+            <div class="stats" id="stats">Zeilen: 1 | Zeichen: 0</div>
+        </div>
+        <div id="editor-container"></div>
+    </div>
+
+    <!-- Laden von CodeMirror 6 über ein schnelles, stabiles CDN -->
+    <script type="module">
+        import { EditorState } from "https://esm.sh/@codemirror/state";
+        import { EditorView, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from "https://esm.sh/@codemirror/view";
+        import { defaultKeymap, history, historyKeymap } from "https://esm.sh/@codemirror/commands";
+        import { searchKeymap, highlightSelectionMatches } from "https://esm.sh/@codemirror/search";
+        import { keymap, drawSelection } from "https://esm.sh/@codemirror/view";
+
+        const statsElement = document.getElementById('stats');
+
+        // Funktion zur Aktualisierung der Zeilen- und Zeichenzählung
+        const updateStatsListener = EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+                const doc = update.state.doc;
+                const lines = doc.lines;
+                const length = doc.length;
+                statsElement.textContent = `Zeilen: ${lines.toLocaleString()} | Zeichen: ${length.toLocaleString()}`;
+            }
+        });
+
+        // Beispiel-Text für den Start (kannst du löschen oder ersetzen)
+        const initialText = `# Willkommen im Editor\n\nKopiere hier gerne ein Dokument mit 10.000 Zeilen hinein. Dank Virtual Scrolling ruckelt hier absolut nichts.\n`;
+
+        // Editor Konfiguration
+        const state = EditorState.create({
+            doc: initialText,
+            extensions: [
+                lineNumbers(),                 // Zeilennummern anzeigen
+                highlightActiveLineGutter(),   // Aktive Zeilennummer hervorheben
+                highlightActiveLine(),         // Aktive Zeile im Editor hervorheben
+                history(),                     // Undo/Redo Historie aktivieren
+                drawSelection(),               // Verbessertes Auswahl-Rendering
+                highlightSelectionMatches(),
+                keymap.of([
+                    ...defaultKeymap,          // Standard-Tastaturkürzel (Pfeiltasten, etc.)
+                    ...historyKeymap,           // Strg+Z / Strg+Y für Undo/Redo
+                    ...searchKeymap
+                ]),
+                updateStatsListener            // Unser Live-Zähler
+            ]
+        });
+
+        // Editor in den DOM einbetten
+        const view = new EditorView({
+            state,
+            parent: document.getElementById("editor-container")
+        });
+
+        // Fokus direkt in den Editor setzen beim Laden
+        view.focus();
+    </script>
+</body>
+</html>

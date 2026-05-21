@@ -1,0 +1,163 @@
+variables:
+  GITLAB_ACCESS_TOKEN: $OPERATOR_TOKEN   # masked + protected + hidden
+  CONFIG_FILE: "tokens.yaml"
+  SEALED_SECRETS_DIR: "argocd-config/secrets"
+  KUBESEAL_CERT: "sealed-secrets.pub.pem"   # liegt im Repo
+  DRY_RUN: "true"
+
+stages:
+  - rotate-operator
+  - rotate-tokens
+  - seal-and-commit
+
+# 1. Operator-Token mit Component rotieren (statisch)
+include:
+  - component: $CI_SERVER_FQDN/components/rotate-access-token-component/rotate-group-access-token@1.5.0
+    inputs:
+      token_name: "operator-rotator"
+      self_rotate: true
+      target_variable: "OPERATOR_TOKEN"
+      target_environment: "production"
+      expiration_days: 90
+    rules:
+      - if: '$DRY_RUN == "true"'
+        when: never
+      - when: on_success
+
+# 2. Alle anderen Tokens dynamisch rotieren + ggf. initial anlegen
+rotate-all-tokens:
+  stage: rotate-tokens
+  needs: ["rotate-project-access-token"]
+  image: alpine:latest
+  script:
+    - apk add --no-cache curl jq yq coreutils
+    - set -euo pipefail
+    - touch build.env
+
+    - echo "=== Tokens aus $CONFIG_FILE laden ==="
+    - |
+      yq e '.tokens[] | select(.id != "operator-token")' "$CONFIG_FILE" -o=json | while read -r token; do
+        ID=$(echo "$token" | jq -r '.id')
+        TOKEN_NAME=$(echo "$token" | jq -r '.token_name')
+        PROJECT_ID=$(echo "$token" | jq -r '.project_id')
+        TARGET_VAR=$(echo "$token" | jq -r '.target_variable')
+        SELF_ROTATE=$(echo "$token" | jq -r '.self_rotate // "true"')
+        EXPIRES_DAYS=$(echo "$token" | jq -r '.expires_in_days // 90')
+        DESCRIPTION=$(echo "$token" | jq -r '.description // "Rotated by CI"')
+        SCOPES=$(echo "$token" | jq -r '.scopes | join(",")')
+
+        echo "→ Bearbeite Token: $ID ($TOKEN_NAME)"
+
+        # === 1. Prüfen, ob Token existiert ===
+        TOKEN_METADATA=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" "https://$CI_SERVER_HOST/api/v4/projects/$PROJECT_ID/access_tokens")
+        EXISTING_ID=$(echo "$TOKEN_METADATA" | jq -r ".[] | select(.name == \"$TOKEN_NAME\") | .id // empty")
+
+        if [ -z "$EXISTING_ID" ]; then
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "     [DRY-RUN] Würde Token '$TOKEN_NAME' initial anlegen (POST)"
+            RESPONSE='{"token": "dry_run_mock_new_token_123456"}'
+          else
+            echo "   Token existiert noch nicht → wird initial angelegt"
+            RESPONSE=$(curl -s --fail-with-body -X POST \
+              --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" \
+              --header "Content-Type: application/json" \
+              -d "{
+                \"name\": \"$TOKEN_NAME\",
+                \"scopes\": [\"${SCOPES//,/\",\"}\"],
+                \"expires_at\": \"$(date -d "+$EXPIRES_DAYS days" +%Y-%m-%d)\",
+                \"description\": \"$DESCRIPTION\"
+              }" \
+              "https://$CI_SERVER_HOST/api/v4/projects/$PROJECT_ID/access_tokens")
+            fi
+        else
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "   [DRY-RUN] Würde Token '$TOKEN_NAME' rotieren (/self/rotate)"
+            RESPONSE='{"token": "dry_run_mock_rotated_token_789012"}'
+          else
+            # === 2. Self-Rotate ===
+            echo "   Token existiert → wird rotiert"
+            # Defensiver Fallback, falls Variable im Test-Branch fehlt
+            CURRENT_TOKEN=${!TARGET_VAR:-"dry_run_old_token_fallback"}
+            RESPONSE=$(curl -s --fail-with-body -X POST \
+              --header "PRIVATE-TOKEN: $CURRENT_TOKEN" \
+              "https://$CI_SERVER_HOST/api/v4/projects/$PROJECT_ID/access_tokens/self/rotate")
+          fi
+        fi
+
+        NEW_TOKEN=$(echo "$RESPONSE" | jq -r '.token')
+        if [ "$NEW_TOKEN" = "null" ] || [ -z "$NEW_TOKEN" ]; then
+          echo "❌ FEHLER bei $ID: Kein neues Token erhalten"
+          exit 1
+        fi
+
+        if [ "${DRY_RUN}" = "true" ]; then
+          echo "   [DRY-RUN] Würde neue GitLab-Variable '$TARGET_VAR' in den Projekteinstellungen speichern (PUT)"
+        else
+          # Variable aktualisieren (Operator macht das)
+          curl -s --fail-with-body -X PUT \
+            --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            -d "{\"value\":\"$NEW_TOKEN\",\"masked\":true,\"protected\":true}" \
+            "https://$CI_SERVER_HOST/api/v4/projects/$CI_PROJECT_ID/variables/$TARGET_VAR"
+          echo "✅ $ID erfolgreich rotiert / angelegt"
+        fi
+        echo "${TARGET_VAR}=${NEW_TOKEN}" >> build.env
+      done
+  artifacts:
+    reports:
+      dotenv: build.env
+# 3. Sealed Secrets erstellen + committen
+seal-and-commit:
+  stage: seal-and-commit
+  needs: ["rotate-all-tokens"]
+  image: alpine:latest
+  script:
+    - apk add --no-cache git yq kubeseal
+    - set -euo pipefail
+
+    - echo "=== SealedSecrets generieren ==="
+    - mkdir -p "$SEALED_SECRETS_DIR"
+
+    - |
+      yq e '.tokens[] | select(.secret_name != null)' "$CONFIG_FILE" -o=json | while read -r token; do
+        SECRET_NAME=$(echo "$token" | jq -r '.secret_name')
+        NAMESPACE=$(echo "$token" | jq -r '.namespace')
+        USERNAME=$(echo "$token" | jq -r '.username')
+        TARGET_VAR=$(echo "$token" | jq -r '.target_variable')
+        NEW_TOKEN=${!TARGET_VAR:-"dry_run_mock_token_value"}
+
+        SECRET_TEMPLATE=$(cat <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: $SECRET_NAME
+  namespace: $NAMESPACE
+type: kubernetes.io/basic-auth
+stringData:
+  username: $USERNAME
+  password: $NEW_TOKEN
+EOF
+        )
+
+        echo "$SECRET_TEMPLATE" | kubeseal --format=yaml --cert="$KUBESEAL_CERT" \
+          --merge-into "$SEALED_SECRETS_DIR/$SECRET_NAME-sealed.yaml"
+
+        echo "✅ Verschlüsselte Datei aktualisiert: $SECRET_NAME-sealed.yaml"
+      done
+
+    - |
+      if [ "${DRY_RUN}" = "true" ]; then
+        echo "=== [DRY-RUN] Git-Inhalte wurden lokal generiert ==="
+        echo "Folgende SealedSecret-Dateien wurden erzeugt:"
+        ls -la "$SEALED_SECRETS_DIR/"
+        echo "Pipeline stoppt hier. Es wird kein Push durchgeführt."
+      else
+        echo "=== Ins Git committen ==="
+        git config user.name "Token Rotator CI"
+        git config user.email "ci@gitlab.example.com"
+        git add "$SEALED_SECRETS_DIR/"
+        git commit -m "chore: rotate tokens $(date +%Y-%m-%d %H:%M) [skip ci]" || echo "Keine Änderungen"
+        git push origin $CI_COMMIT_BRANCH
+      fi
+
+    - echo "🎉 Alle Tokens rotiert, Sealed Secrets aktualisiert und gepusht!"

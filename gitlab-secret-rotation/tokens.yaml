@@ -1,0 +1,27 @@
+---
+# Diese Datei enthält alle Tokens, die für das Projekt benötigt werden.
+tokens:
+  - id: operator-token
+    type: group_access_token
+    project_id: 42                          # ID deines Rotation-Projekts
+    token_name: "operator-rotator"
+    target_variable: "OPERATOR_TOKEN"
+    self_rotate: true
+    expires_in_days: 90
+    description: "Operator Token for Token Rotation Pipeline"
+    scopes: ["api", "self_rotate"]
+
+  - id: argocd-git-creds
+    type: project_access_token
+    project_id: 123
+    token_name: "argocd-git-creds"
+    target_variable: "ARGO_CD_GITLAB_TOKEN"
+    secret_name: "gitlab-repo-creds"
+    namespace: "argocd"
+    username: "gitlab-token"
+    self_rotate: true
+    expires_in_days: 90
+    description: "ArgoCD GitLab Repository Credential"
+    scopes: ["read_repository", "self_rotate"]
+
+  # Weitere Tokens einfach hier hinzufügen

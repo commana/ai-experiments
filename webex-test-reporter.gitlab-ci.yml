@@ -26,9 +26,14 @@ system_test:
         echo "TEST_RESULT=❌ Fehlgeschlagen" > test-result.env
         echo "TEST_EMOJI=🔴" >> test-result.env
       fi
+
+      # === FLAKY_RECOVERED: Zählt Tests, die nach Retry erfolgreich waren ===
+      FLAKY_RECOVERED=$(grep -r '<rerunFailure\|<flakyFailure' target/surefire-reports/ target/failsafe-reports/ 2>/dev/null | wc -l || echo 0)
+      echo "FLAKY_RECOVERED=$FLAKY_RECOVERED" >> test-result.env
+
   artifacts:
     reports:
-      dotenv: test-result.env   # übergibt TEST_RESULT + TEST_EMOJI an den nächsten Job
+      dotenv: test-result.env   # übergibt TEST_RESULT + TEST_EMOJI + FLAKY_RECOVERED an den nächsten Job
 
 notify_webex:
   stage: notify
@@ -66,6 +71,13 @@ notify_webex:
         STREAK_TEXT="Streak zurückgesetzt."
       fi
 
+      # === FLAKY_RECOVERED Indikator ===
+      if [ "${FLAKY_RECOVERED:-0}" -gt 0 ]; then
+        FLAKY_TEXT="🔄 **${FLAKY_RECOVERED} Test(s) waren flaky**, aber nach Retry erfolgreich ✅"
+      else
+        FLAKY_TEXT="✅ Keine Flakiness erkannt (alle Tests stabil)"
+      fi
+
       # Schöne Markdown-Nachricht für Webex
       MESSAGE="${TEST_EMOJI} **Systemtest** auf \`${CI_COMMIT_REF_NAME}\`  \n"
       MESSAGE+="**${TEST_RESULT}**  \n\n"
@@ -73,6 +85,7 @@ notify_webex:
       MESSAGE+="🔗 [Pipeline ansehen](${CI_PIPELINE_URL})  \n"
       MESSAGE+="⏰ ${CI_JOB_STARTED_AT}  \n"
       MESSAGE+="\n${STREAK_TEXT}"
+      MESSAGE+="\n${FLAKY_TEXT}"
 
       # Nachricht an Webex Bot senden
       curl -X POST https://webexapis.com/v1/messages \

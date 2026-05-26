@@ -3,20 +3,15 @@ stages:
   - notify
 
 variables:
-  # Hier kannst du weitere globale Variablen setzen, z. B. für deine Tests
+  MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
 
 system_test:
   stage: test
-  # Hier kannst du dein gewünschtes Image eintragen (z. B. node, python, ubuntu etc.)
-  # image: node:20   # Beispiel
+  image: maven:3.9-eclipse-temurin-21
   script:
-    - echo "🚀 Starte Systemtests auf Branch ${CI_COMMIT_REF_NAME}..."
+    - echo "🚀 Starte Maven Systemtests auf Branch ${CI_COMMIT_REF_NAME}..."
     - echo "Commit: ${CI_COMMIT_SHORT_SHA} – ${CI_COMMIT_TITLE}"
-    # <<< HIER DEINE ECHTEN SYSTEMTESTS EINFÜGEN >>>
-    # Beispiel:
-    # - npm ci
-    # - npm run system-test || exit 1
-    # Oder: ./run-system-tests.sh
+    - mvn clean verify -B --no-transfer-progress -Dmaven.test.failure.ignore=true
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "success" ]; then
@@ -27,18 +22,18 @@ system_test:
         echo "TEST_EMOJI=🔴" >> test-result.env
       fi
 
-      # === FLAKY_RECOVERED: Zählt Tests, die nach Retry erfolgreich waren ===
-      FLAKY_RECOVERED=$(grep -r '<rerunFailure\|<flakyFailure' target/surefire-reports/ target/failsafe-reports/ 2>/dev/null | wc -l || echo 0)
+      # === FLAKY_RECOVERED: Zählt Tests, die nach Retry (rerunFailingTestsCount) erfolgreich waren ===
+      FLAKY_RECOVERED=$(grep -r '<rerunFailure\|<flakyFailure' target/failsafe-reports/ target/surefire-reports/ 2>/dev/null | wc -l || echo 0)
       echo "FLAKY_RECOVERED=$FLAKY_RECOVERED" >> test-result.env
 
   artifacts:
     reports:
-      dotenv: test-result.env   # übergibt TEST_RESULT + TEST_EMOJI + FLAKY_RECOVERED an den nächsten Job
+      dotenv: test-result.env
 
 notify_webex:
   stage: notify
   image: alpine:latest
-  when: always                  # läuft immer, auch bei Test-Fehler
+  when: always
   needs: ["system_test"]
   script:
     - apk add --no-cache curl jq > /dev/null 2>&1
@@ -46,13 +41,10 @@ notify_webex:
     - |
       echo "📡 Berechne Success-Streak und sende Webex-Nachricht..."
 
-      # Pipeline-Historie abrufen (neueste zuerst)
       PIPELINES=$(curl -s \
         --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_COMMIT_REF_NAME}&per_page=50&order_by=created_at&sort=desc")
 
-      # Vorherige aufeinanderfolgende Successful-Pipelines zählen
-      # (nur abgeschlossene Pipelines, aktuelle Pipeline wird ignoriert)
       PREV_STREAK=$(echo "$PIPELINES" | jq -r '
         [ .[] 
           | select(.id != '"${CI_PIPELINE_ID}"')
@@ -62,7 +54,6 @@ notify_webex:
         | [range(length) as $i | if .[$i] != "success" then $i else empty end][0] // length
       ')
 
-      # Aktuellen Streak berechnen
       if [ "$TEST_RESULT" = "✅ Erfolgreich" ]; then
         STREAK=$((PREV_STREAK + 1))
         STREAK_TEXT="🔥 **${STREAK}** aufeinanderfolgende Erfolge!"
@@ -71,14 +62,12 @@ notify_webex:
         STREAK_TEXT="Streak zurückgesetzt."
       fi
 
-      # === FLAKY_RECOVERED Indikator ===
       if [ "${FLAKY_RECOVERED:-0}" -gt 0 ]; then
         FLAKY_TEXT="🔄 **${FLAKY_RECOVERED} Test(s) waren flaky**, aber nach Retry erfolgreich ✅"
       else
         FLAKY_TEXT="✅ Keine Flakiness erkannt (alle Tests stabil)"
       fi
 
-      # Schöne Markdown-Nachricht für Webex
       MESSAGE="${TEST_EMOJI} **Systemtest** auf \`${CI_COMMIT_REF_NAME}\`  \n"
       MESSAGE+="**${TEST_RESULT}**  \n\n"
       MESSAGE+="📌 Commit: \`${CI_COMMIT_SHORT_SHA}\` – ${CI_COMMIT_TITLE}  \n"
@@ -87,7 +76,6 @@ notify_webex:
       MESSAGE+="\n${STREAK_TEXT}"
       MESSAGE+="\n${FLAKY_TEXT}"
 
-      # Nachricht an Webex Bot senden
       curl -X POST https://webexapis.com/v1/messages \
         -H "Authorization: Bearer ${WEBEX_BOT_TOKEN}" \
         -H "Content-Type: application/json" \

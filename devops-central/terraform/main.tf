@@ -3,6 +3,23 @@ resource "hcloud_ssh_key" "main" {
   public_key = var.ssh_public_key
 }
 
+# Cloud Volume für persistente Daten (GitLab + Artifactory)
+resource "hcloud_volume" "data" {
+  name      = var.volume_name
+  size      = var.volume_size
+  location  = var.location
+  format    = "ext4"
+  labels = {
+    project = "devops-central"
+  }
+}
+
+resource "hcloud_volume_attachment" "data" {
+  volume_id = hcloud_volume.data.id
+  server_id = hcloud_server.main.id
+  automount = false   # Wir mounten manuell via cloud-init
+}
+
 resource "hcloud_server" "main" {
   name        = var.server_name
   server_type = var.server_type
@@ -10,14 +27,17 @@ resource "hcloud_server" "main" {
   location    = var.location
   ssh_keys    = [hcloud_ssh_key.main.name]
 
-  user_data = file("${path.module}/cloud-init.yaml")
+  user_data = templatefile("${path.module}/cloud-init.yaml", {
+    volume_name = var.volume_name
+  })
 
   labels = {
     project = "devops-central"
     purpose = "on-demand-lab"
   }
 
-  # Vollautomatisches Setup: Clone + .env rendern + Stack starten
+  depends_on = [hcloud_volume_attachment.data]
+
   provisioner "remote-exec" {
     inline = [
       "cloud-init status --wait",
@@ -28,13 +48,9 @@ resource "hcloud_server" "main" {
       "sed -i 's|LAB_DOMAIN=.*|LAB_DOMAIN=${var.lab_domain}|g' .env",
       "sed -i 's|ADMIN_EMAIL=.*|ADMIN_EMAIL=${var.admin_email}|g' .env",
       "sed -i 's|GITLAB_ROOT_PASSWORD=.*|GITLAB_ROOT_PASSWORD=${var.gitlab_root_password}|g' .env",
-      "echo ' .env angepasst'",
       "docker compose pull",
       "docker compose up -d",
-      "echo '✅ Stack automatisch gestartet!'",
-      "echo 'GitLab:      https://gitlab.${var.lab_domain}'",
-      "echo 'Artifactory: https://artifactory.${var.lab_domain}'",
-      "echo 'Warte 3-5 Min auf ersten Start von GitLab...'"
+      "echo '✅ Stack automatisch gestartet!'"
     ]
 
     connection {

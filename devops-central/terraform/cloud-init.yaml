@@ -29,8 +29,14 @@ runcmd:
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
   - usermod -aG docker ubuntu
+
+  # Cloud Volume mounten (wird von Terraform attached)
+  - mkdir -p /mnt/data
+  - mount /dev/disk/by-id/scsi-0HC_Volume_${volume_name} /mnt/data || true
+  - echo '/dev/disk/by-id/scsi-0HC_Volume_${volume_name} /mnt/data ext4 defaults,nofail 0 0' >> /etc/fstab
+
   - ufw allow 22/tcp
   - ufw allow 80/tcp
   - ufw allow 443/tcp
   - ufw --force enable
-  - echo "✅ Docker + Compose + Firewall ready" > /var/log/devops-central-init.log
+  - echo "✅ Docker + Cloud Volume + Firewall ready" > /var/log/devops-central-init.log

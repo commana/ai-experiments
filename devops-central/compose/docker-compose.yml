@@ -22,12 +22,10 @@ services:
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://gitlab.${LAB_DOMAIN}'
         gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD}'
-        # Weitere Einstellungen hier möglich
     volumes:
-      - gitlab_config:/etc/gitlab
-      - gitlab_logs:/var/log/gitlab
-      - gitlab_data:/var/opt/gitlab
-    # Keine direkten Ports - nur über Caddy
+      - /mnt/data/gitlab_config:/etc/gitlab
+      - /mnt/data/gitlab_logs:/var/log/gitlab
+      - /mnt/data/gitlab_data:/var/opt/gitlab
 
   artifactory:
     image: releases-docker.jfrog.io/jfrog/artifactory-oss:7.90.0
@@ -35,13 +33,8 @@ services:
     environment:
       - JFROG_HOME=/var/opt/jfrog/artifactory
     volumes:
-      - artifactory_data:/var/opt/jfrog/artifactory
-    # UI auf 8082, REST auf 8081
+      - /mnt/data/artifactory_data:/var/opt/jfrog/artifactory
 
 volumes:
   caddy_data:
   caddy_config:
-  gitlab_config:
-  gitlab_logs:
-  gitlab_data:
-  artifactory_data:

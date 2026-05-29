@@ -46,17 +46,14 @@ variable "gitlab_root_password" {
   sensitive   = true
 }
 
-# Optional für S3 Backend (wenn du remote state nutzt)
-variable "s3_access_key" {
-  description = "Hetzner Object Storage Access Key (optional)"
-  type        = string
-  default     = ""
-  sensitive   = true
+variable "volume_size" {
+  description = "Größe der Cloud Volume in GB (empfohlen mind. 20-50 GB für GitLab + Artifactory)"
+  type        = number
+  default     = 5
 }
 
-variable "s3_secret_key" {
-  description = "Hetzner Object Storage Secret Key (optional)"
+variable "volume_name" {
+  description = "Name der Cloud Volume"
   type        = string
-  default     = ""
-  sensitive   = true
+  default     = "devops-data"
 }

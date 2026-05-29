@@ -1,8 +1,17 @@
 # DevOps Central - On-Demand DevOps Lab
 
-**Vollautomatisches IaC-Grundgerüst** – mit einem einzigen `terraform apply` läuft dein kompletter Stack.
+**Vollautomatisches IaC-Grundgerüst** mit persistenter **Cloud Volume** (5 GB).
 
-## Schnellstart (ein Befehl)
+## Was passiert beim `terraform apply`?
+
+1. VPS + 5 GB Cloud Volume wird erstellt
+2. Volume wird automatisch formatiert + gemountet unter `/mnt/data`
+3. GitLab- und Artifactory-Daten werden auf der Cloud Volume gespeichert
+4. Stack startet automatisch
+
+**Daten bleiben erhalten**, auch wenn du den VPS zerstörst und neu aufbaust!
+
+## Schnellstart
 
 ```bash
 git clone https://github.com/commana/ai-experiments.git
@@ -12,29 +21,23 @@ make init
 make apply
 ```
 
-## Makefile Targets (sehr praktisch)
+## Wichtiger Hinweis zur 5 GB Volume
+
+**5 GB ist sehr klein!** GitLab + Artifactory können schnell mehr Platz brauchen (Repositories, Docker Images, Logs).
+
+**Empfehlung**: Später auf 20–50 GB erhöhen (einfach `volume_size` in `variables.tf` ändern und `terraform apply`).
+
+## Makefile Targets
 
 ```bash
-make help           # Zeigt alle verfügbaren Targets
-make init           # Lokaler State
-make init-backend   # Mit Hetzner Object Storage Backend
-make apply          # Vollautomatisches Setup
-make ssh            # Direkt auf den Server
-make bootstrap      # Stack manuell neu starten
-make destroy        # Alles löschen
+make help
+make init
+make init-backend     # Remote State
+make apply
+make ssh
+make bootstrap
+make destroy
 ```
-
-## Terraform State Management
-
-### Hetzner Object Storage (empfohlen)
-
-1. Bucket + Access Keys in Hetzner Console anlegen
-2. `backend.tf` anpassen (S3-Block aktivieren)
-3. `make init-backend` ausführen
-
-Fertig! Dein State liegt jetzt sicher in Hetzner Object Storage.
-
-> **Hinweis**: Hetzner bietet kein State Locking. Für Team/CI-CD empfehlen wir Terraform Cloud.
 
 ## Zugriff
 

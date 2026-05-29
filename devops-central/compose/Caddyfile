@@ -1,0 +1,13 @@
+{
+  email ${ADMIN_EMAIL}
+  # global options
+}
+
+gitlab.${LAB_DOMAIN} {
+  reverse_proxy gitlab:80
+  # Optional: header_up etc.
+}
+
+artifactory.${LAB_DOMAIN} {
+  reverse_proxy artifactory:8082
+}

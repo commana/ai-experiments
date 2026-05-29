@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - gitlab
+      - artifactory
+
+  gitlab:
+    image: gitlab/gitlab-ce:17.11.0-ce.0
+    restart: unless-stopped
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.${LAB_DOMAIN}'
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD}'
+        # Weitere Einstellungen hier möglich
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+    # Keine direkten Ports - nur über Caddy
+
+  artifactory:
+    image: releases-docker.jfrog.io/jfrog/artifactory-oss:7.90.0
+    restart: unless-stopped
+    environment:
+      - JFROG_HOME=/var/opt/jfrog/artifactory
+    volumes:
+      - artifactory_data:/var/opt/jfrog/artifactory
+    # UI auf 8082, REST auf 8081
+
+volumes:
+  caddy_data:
+  caddy_config:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
+  artifactory_data:

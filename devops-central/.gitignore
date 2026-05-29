@@ -1,0 +1,17 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Docker / Compose
+.env
+*.log
+
+# Secrets
+*secret*
+*password*
+
+# OS
+.DS_Store
+Thumbs.db

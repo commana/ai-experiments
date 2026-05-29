@@ -1,21 +1,29 @@
-# Terraform Remote State Backend (empfohlen für produktive Nutzung)
+# =====================================================
+# Terraform Remote State Backend - Hetzner Object Storage
+# =====================================================
 
-# Standardmäßig speichert Terraform den State lokal (terraform.tfstate).
-# Für mehrere Maschinen, CI/CD oder Teamarbeit empfehlen wir einen Remote Backend.
+# Hetzner Object Storage ist S3-kompatibel und eignet sich perfekt
+# als Terraform State Backend (günstig + DSGVO-konform).
 
-# ============================================
-# Option 1: Hetzner Object Storage (S3-kompatibel)
-# ============================================
-# 1. Bucket in Hetzner Object Storage anlegen
-# 2. Access Key + Secret Key erstellen
-# 3. Diese Datei anpassen und auskommentieren
+# --- SCHRITT 1: Bucket anlegen ---
+# 1. Gehe zu https://console.hetzner.cloud/
+# 2. Object Storage → "Create Bucket"
+# 3. Bucket Name z.B.: devops-central-terraform-state
+# 4. Location: z.B. fsn1 (Nürnberg)
+
+# --- SCHRITT 2: Access Keys erstellen ---
+# 1. Im selben Bereich "Access Keys" → "Generate Access Key"
+# 2. Key + Secret kopieren
+
+# --- SCHRITT 3: Diese Datei aktivieren ---
+# Kommentiere den folgenden Block ein und passe die Werte an.
 
 # terraform {
 #   backend "s3" {
-#     bucket                      = "devops-central-state"
-#     key                         = "terraform.tfstate"
-#     region                      = "eu-central-1"
-#     endpoint                    = "https://fsn1.your-object-storage.com"   # z.B. fsn1.your-object-storage.com
+#     bucket                      = "devops-central-terraform-state"   # dein Bucket-Name
+#     key                         = "devops-central/terraform.tfstate"  # Pfad im Bucket
+#     region                      = "eu-central-1"                        # beliebig
+#     endpoint                    = "https://fsn1.your-object-storage.com" # dein Location
 #     access_key                  = var.s3_access_key
 #     secret_key                  = var.s3_secret_key
 #     skip_credentials_validation = true
@@ -25,17 +33,8 @@
 #   }
 # }
 
-# ============================================
-# Option 2: Terraform Cloud (einfach & kostenlos bis 500 Ressourcen)
-# ============================================
-# terraform {
-#   cloud {
-#     organization = "deine-organisation"
-#     workspaces {
-#       name = "devops-central"
-#     }
-#   }
-# }
-
-# Nach Änderung des Backends:
+# --- SCHRITT 4: State migrieren ---
 # terraform init -migrate-state
+
+# Hinweis: Hetzner Object Storage unterstützt kein natives State Locking.
+# Für Locking empfehlen wir Terraform Cloud (kostenlos bis 500 Ressourcen).

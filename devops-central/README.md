@@ -1,45 +1,43 @@
 # DevOps Central - On-Demand DevOps Lab
 
-**Vollautomatisches IaC-Grundgerüst** mit persistenter **Cloud Volume** (aktuell 5 GB).
+**Vollautomatisches IaC-Grundgerüst** mit persistenter **20 GB Cloud Volume**.
 
-## Wichtiger Hinweis zur Volume-Größe
+## Cloud Volume – Wichtige Hinweise
 
-**Die Größe der Cloud Volume kann nicht einfach per `terraform apply` erhöht werden!**
+Deine Daten (GitLab + Artifactory) liegen auf einer separaten 20 GB Hetzner Cloud Volume. Das hat zwei große Vorteile:
 
-Terraform zerstört und erstellt die Volume neu, wenn du `volume_size` änderst → **Datenverlust**.
+- Die Daten überleben `terraform destroy`
+- Du kannst die Volume später einfach vergrößern
 
-### Korrekte Möglichkeiten später zu vergrößern:
+### Später vergrößern (wenn 20 GB nicht mehr reichen)
 
-**1. Schnellste Variante (empfohlen für kleine Erhöhungen)**
+**So gehst du vor (ohne Datenverlust):**
 
-1. In der Hetzner Cloud Console die Volume auf z. B. 20 oder 50 GB vergrößern
-2. Auf dem Server ausführen:
+1. Gehe in die [Hetzner Cloud Console](https://console.hetzner.cloud/)
+2. **Volumes** → `devops-data` auswählen
+3. Auf **"Resize"** klicken und z. B. auf 50 GB oder 100 GB erhöhen
+4. Auf dem Server ausführen:
    ```bash
    ssh ubuntu@<IP>
    sudo resize2fs /dev/disk/by-id/scsi-0HC_Volume_devops-data
    ```
+5. Fertig – die Volume ist sofort größer
 
-**2. Saubere Variante (bei großen Sprüngen)**
-
-- Neue größere Volume anlegen
-- Daten mit `rsync` oder `tar` migrieren
-- Alte Volume löschen
-- Terraform-State anpassen
-
-**Empfehlung**: Starte lieber gleich mit 20–50 GB, wenn du Repositories, Docker Images oder CI-Artefakte speichern willst.
+> **Wichtig**: Terraform kann die Größe **nicht** automatisch erhöhen (würde die Volume zerstören). Deshalb immer über die Hetzner Console + `resize2fs`.
 
 ## Was passiert beim `terraform apply`?
 
-1. VPS + Cloud Volume wird erstellt
-2. Volume wird automatisch gemountet unter `/mnt/data`
+1. VPS + 20 GB Cloud Volume wird erstellt
+2. Volume wird automatisch unter `/mnt/data` gemountet
 3. GitLab- und Artifactory-Daten landen auf der Volume
-4. Stack startet automatisch
-
-**Daten bleiben erhalten**, auch wenn du den VPS zerstörst!
+4. Der komplette Stack startet automatisch
 
 ## Schnellstart
 
 ```bash
+git clone https://github.com/commana/ai-experiments.git
+cd ai-experiments/devops-central/terraform
+
 make apply
 ```
 
@@ -53,5 +51,10 @@ make bootstrap
 make destroy          # Volume bleibt erhalten!
 make volume-info
 ```
+
+## Zugriff
+
+- GitLab: https://gitlab.deine-domain.de
+- Artifactory: https://artifactory.deine-domain.de
 
 Viel Erfolg! 🚀

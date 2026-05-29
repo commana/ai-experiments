@@ -8,64 +8,37 @@
 git clone https://github.com/commana/ai-experiments.git
 cd ai-experiments/devops-central/terraform
 
-terraform init
-
-terraform apply \
-  -var="hcloud_token=dein_hetzner_token" \
-  -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" \
-  -var="lab_domain=deine-domain.de" \
-  -var="admin_email=admin@deine-domain.de" \
-  -var="gitlab_root_password=SuperSicheresPasswort123!"
+make init
+make apply
 ```
 
-## Terraform State Management (sehr empfohlen)
+## Makefile Targets (sehr praktisch)
 
-### Warum Remote State?
+```bash
+make help           # Zeigt alle verfügbaren Targets
+make init           # Lokaler State
+make init-backend   # Mit Hetzner Object Storage Backend
+make apply          # Vollautomatisches Setup
+make ssh            # Direkt auf den Server
+make bootstrap      # Stack manuell neu starten
+make destroy        # Alles löschen
+```
 
-- Du arbeitest von mehreren Rechnern
-- Du willst später CI/CD einbauen
-- Bessere Sicherheit + Versionierung
+## Terraform State Management
 
-### Beste Lösung für Hetzner-Nutzer: Hetzner Object Storage
+### Hetzner Object Storage (empfohlen)
 
-**Vorteile**: Günstig, DSGVO-konform, direkt in deinem Hetzner-Account.
-
-#### Einrichtung (5 Minuten)
-
-1. **Bucket erstellen**
-   - Hetzner Cloud Console → Object Storage → "Create Bucket"
-   - Name: `devops-central-terraform-state`
-   - Location: `fsn1` (oder deine bevorzugte Region)
-
-2. **Access Key erstellen**
-   - Im selben Menü "Access Keys" → "Generate Access Key"
-   - Key + Secret sicher kopieren
-
-3. **Backend aktivieren**
-   ```bash
-   cd terraform
-   # Datei backend.tf bearbeiten und den S3-Block auskommentieren
-   nano backend.tf
-   ```
-
-4. **State migrieren**
-   ```bash
-   terraform init -migrate-state
-   ```
+1. Bucket + Access Keys in Hetzner Console anlegen
+2. `backend.tf` anpassen (S3-Block aktivieren)
+3. `make init-backend` ausführen
 
 Fertig! Dein State liegt jetzt sicher in Hetzner Object Storage.
 
-> **Hinweis**: Hetzner Object Storage bietet kein automatisches State Locking. Für echte Team- oder CI/CD-Nutzung empfehlen wir Terraform Cloud (kostenlos bis 500 Ressourcen).
+> **Hinweis**: Hetzner bietet kein State Locking. Für Team/CI-CD empfehlen wir Terraform Cloud.
 
-## Zugriff nach dem Apply
+## Zugriff
 
-- **GitLab**: https://gitlab.deine-domain.de
-- **Artifactory**: https://artifactory.deine-domain.de
-
-## Nächste Schritte
-
-- k3d Cluster hinzufügen
-- ArgoCD + GitOps
-- Monitoring (Prometheus + Grafana)
+- GitLab: https://gitlab.deine-domain.de
+- Artifactory: https://artifactory.deine-domain.de
 
 Viel Erfolg! 🚀

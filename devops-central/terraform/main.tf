@@ -17,7 +17,7 @@ resource "hcloud_volume" "data" {
 resource "hcloud_volume_attachment" "data" {
   volume_id = hcloud_volume.data.id
   server_id = hcloud_server.main.id
-  automount = false   # Wir mounten manuell via cloud-init
+  automount = false
 }
 
 resource "hcloud_server" "main" {

@@ -1,47 +1,57 @@
 # DevOps Central - On-Demand DevOps Lab
 
-**Vollautomatisches IaC-Grundgerüst** mit persistenter **Cloud Volume** (5 GB).
+**Vollautomatisches IaC-Grundgerüst** mit persistenter **Cloud Volume** (aktuell 5 GB).
+
+## Wichtiger Hinweis zur Volume-Größe
+
+**Die Größe der Cloud Volume kann nicht einfach per `terraform apply` erhöht werden!**
+
+Terraform zerstört und erstellt die Volume neu, wenn du `volume_size` änderst → **Datenverlust**.
+
+### Korrekte Möglichkeiten später zu vergrößern:
+
+**1. Schnellste Variante (empfohlen für kleine Erhöhungen)**
+
+1. In der Hetzner Cloud Console die Volume auf z. B. 20 oder 50 GB vergrößern
+2. Auf dem Server ausführen:
+   ```bash
+   ssh ubuntu@<IP>
+   sudo resize2fs /dev/disk/by-id/scsi-0HC_Volume_devops-data
+   ```
+
+**2. Saubere Variante (bei großen Sprüngen)**
+
+- Neue größere Volume anlegen
+- Daten mit `rsync` oder `tar` migrieren
+- Alte Volume löschen
+- Terraform-State anpassen
+
+**Empfehlung**: Starte lieber gleich mit 20–50 GB, wenn du Repositories, Docker Images oder CI-Artefakte speichern willst.
 
 ## Was passiert beim `terraform apply`?
 
-1. VPS + 5 GB Cloud Volume wird erstellt
-2. Volume wird automatisch formatiert + gemountet unter `/mnt/data`
-3. GitLab- und Artifactory-Daten werden auf der Cloud Volume gespeichert
+1. VPS + Cloud Volume wird erstellt
+2. Volume wird automatisch gemountet unter `/mnt/data`
+3. GitLab- und Artifactory-Daten landen auf der Volume
 4. Stack startet automatisch
 
-**Daten bleiben erhalten**, auch wenn du den VPS zerstörst und neu aufbaust!
+**Daten bleiben erhalten**, auch wenn du den VPS zerstörst!
 
 ## Schnellstart
 
 ```bash
-git clone https://github.com/commana/ai-experiments.git
-cd ai-experiments/devops-central/terraform
-
-make init
 make apply
 ```
-
-## Wichtiger Hinweis zur 5 GB Volume
-
-**5 GB ist sehr klein!** GitLab + Artifactory können schnell mehr Platz brauchen (Repositories, Docker Images, Logs).
-
-**Empfehlung**: Später auf 20–50 GB erhöhen (einfach `volume_size` in `variables.tf` ändern und `terraform apply`).
 
 ## Makefile Targets
 
 ```bash
 make help
-make init
-make init-backend     # Remote State
 make apply
 make ssh
 make bootstrap
-make destroy
+make destroy          # Volume bleibt erhalten!
+make volume-info
 ```
-
-## Zugriff
-
-- GitLab: https://gitlab.deine-domain.de
-- Artifactory: https://artifactory.deine-domain.de
 
 Viel Erfolg! 🚀

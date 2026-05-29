@@ -47,7 +47,7 @@ variable "gitlab_root_password" {
 }
 
 variable "volume_size" {
-  description = "Größe der Cloud Volume in GB (empfohlen mind. 20-50 GB für GitLab + Artifactory)"
+  description = "Größe der Cloud Volume in GB (5 GB ist sehr klein – später manuell in der Hetzner Console vergrößern oder gleich 20-50 GB starten)"
   type        = number
   default     = 5
 }

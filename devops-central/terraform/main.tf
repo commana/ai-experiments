@@ -17,14 +17,24 @@ resource "hcloud_server" "main" {
     purpose = "on-demand-lab"
   }
 
-  # Automatisches Setup nach dem Boot
+  # Vollautomatisches Setup: Clone + .env rendern + Stack starten
   provisioner "remote-exec" {
     inline = [
       "cloud-init status --wait",
-      "echo '=== DevOps Central Setup ==='",
+      "echo '=== DevOps Central - Automatisches Setup ==='",
       "git clone https://github.com/commana/ai-experiments.git /opt/devops-central || true",
-      "echo 'Repo geklont nach /opt/devops-central'",
-      "echo 'Nächster Schritt: SSH zum Server und ./scripts/bootstrap.sh ausführen'"
+      "cd /opt/devops-central/compose",
+      "cp -n .env.example .env",
+      "sed -i 's|LAB_DOMAIN=.*|LAB_DOMAIN=${var.lab_domain}|g' .env",
+      "sed -i 's|ADMIN_EMAIL=.*|ADMIN_EMAIL=${var.admin_email}|g' .env",
+      "sed -i 's|GITLAB_ROOT_PASSWORD=.*|GITLAB_ROOT_PASSWORD=${var.gitlab_root_password}|g' .env",
+      "echo ' .env angepasst'",
+      "docker compose pull",
+      "docker compose up -d",
+      "echo '✅ Stack automatisch gestartet!'",
+      "echo 'GitLab:      https://gitlab.${var.lab_domain}'",
+      "echo 'Artifactory: https://artifactory.${var.lab_domain}'",
+      "echo 'Warte 3-5 Min auf ersten Start von GitLab...'"
     ]
 
     connection {

@@ -1,83 +1,61 @@
 # DevOps Central - On-Demand DevOps Lab
 
-Vollständiges IaC-Grundgerüst für einen kostengünstigen, on-demand DevOps-Stack auf Hetzner Cloud.
+**Vollautomatisches IaC-Grundgerüst** – mit einem einzigen `terraform apply` läuft dein kompletter Stack (GitLab + Artifactory + Caddy).
 
-## Architektur
+## Was passiert beim `terraform apply`?
 
-- **VPS**: Hetzner Cloud (CPX42: 8 vCPU / 16 GB RAM) mit Docker
-- **Reverse Proxy**: Caddy (automatisches HTTPS via Let's Encrypt)
-- **GitLab CE**: Docker-Container (Quellcode, CI/CD, Container Registry)
-- **Artifactory OSS**: JFrog für Binaries, Docker-Images, Helm-Charts, Maven etc.
-- **Kubernetes (optional)**: k3d (leichtgewichtiger k3s) auf dem gleichen VPS
+1. VPS wird auf Hetzner erstellt (Ubuntu 24.04 + Docker + Firewall)
+2. Repo wird automatisch geklont
+3. `.env` wird mit deinen Variablen befüllt
+4. Docker Compose Stack startet automatisch (GitLab + Artifactory hinter Caddy mit Let's Encrypt)
 
-## Voraussetzungen
+**Fertig in ca. 8-12 Minuten** (inkl. GitLab-First-Start).
 
-- Hetzner Cloud Account + API-Token (Write-Berechtigung)
-- Eigene Domain mit A-Records für `gitlab.deine-domain.de` und `artifactory.deine-domain.de`
-- SSH-Schlüsselpaar
-
-## Schnellstart (5-10 Minuten bis lauffähig)
+## Schnellstart (ein Befehl)
 
 ```bash
-# 1. Terraform initialisieren und anwenden
 git clone https://github.com/commana/ai-experiments.git
 cd ai-experiments/devops-central/terraform
 
 terraform init
+
 terraform apply \
   -var="hcloud_token=dein_hetzner_token" \
   -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" \
-  -var="lab_domain=deine-domain.de"
+  -var="lab_domain=deine-domain.de" \
+  -var="admin_email=admin@deine-domain.de" \
+  -var="gitlab_root_password=SuperSicheresPasswort123!"
 
-# 2. DNS konfigurieren (A-Records auf die ausgegebene IP zeigen)
+# Danach nur noch DNS konfigurieren (A-Records auf die IP)
+```
 
-# 3. Auf den VPS einloggen
-ssh ubuntu@$(terraform output -raw server_ip)
+## Zugriff nach dem Apply
 
-# 4. Bootstrap ausführen (clont Repo, startet Stack)
-cd /opt/devops-central/scripts
-chmod +x bootstrap.sh
-./bootstrap.sh
+- **GitLab**: https://gitlab.deine-domain.de (User: root / Passwort aus Variable)
+- **Artifactory**: https://artifactory.deine-domain.de (User: admin / Passwort: password – beim ersten Login ändern!)
 
-# 5. .env anpassen (wichtig: Passwörter & Domain)
-nano /opt/devops-central/compose/.env
+## Manuelle Nachjustierung
 
-# 6. Stack neu starten (falls nötig)
+Falls du später etwas ändern willst:
+
+```bash
+ssh ubuntu@<IP>
 cd /opt/devops-central/compose
-docker compose down
+nano .env
 docker compose up -d
 ```
 
-**Hinweis**: Der erste Start von GitLab kann 5-10 Minuten dauern (Datenbank-Initialisierung).
+Oder das `bootstrap.sh` manuell ausführen (z.B. nach `terraform destroy` + neuem Apply).
 
-## Zugriff
+## Kosten & Backup
 
-- GitLab: https://gitlab.deine-domain.de (root / Passwort aus .env)
-- Artifactory: https://artifactory.deine-domain.de (admin / password)
+- Bei stundenweiser Nutzung oft < 5 €/Monat
+- Vor `terraform destroy`: Volumes sichern (siehe README im Repo)
 
-## Kosten sparen
+## Nächste Schritte
 
-- VPS nach Gebrauch stoppen oder löschen (`terraform destroy`)
-- Vorher Volumes sichern: `docker volume ls` + Backup-Skript
-- Typische Kosten bei 8-10 Stunden/Monat: < 5 €
+- k3d Cluster hinzufügen (`k3d cluster create devops-lab`)
+- ArgoCD + GitOps
+- Monitoring Stack
 
-## Backup & Restore
-
-Vor dem Zerstören:
-```bash
-# Volumes sichern (Beispiel)
-docker run --rm -v gitlab_data:/data -v $(pwd):/backup alpine tar czf /backup/gitlab_data.tar.gz -C /data .
-# Ähnlich für artifactory_data
-```
-
-Oder Hetzner Volume als persistentes Storage mounten (erweiterbar).
-
-## Erweiterungen (nächste Schritte)
-
-- ArgoCD für GitOps auf k3d
-- Prometheus + Grafana + Loki Monitoring
-- Longhorn Storage für k3d
-- GitLab Runner als Kubernetes Executor
-- Vault für Secrets
-
-Viel Erfolg beim Experimentieren und Lernen! 🚀
+Viel Spaß! 🚀

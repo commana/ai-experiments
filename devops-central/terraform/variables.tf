@@ -32,3 +32,16 @@ variable "lab_domain" {
   type        = string
   default     = "example.com"
 }
+
+variable "admin_email" {
+  description = "E-Mail für Let's Encrypt (Caddy)"
+  type        = string
+  default     = "admin@example.com"
+}
+
+variable "gitlab_root_password" {
+  description = "Initiales Root-Passwort für GitLab (muss stark sein!)"
+  type        = string
+  default     = "ChangeMeStrong123!"
+  sensitive   = true
+}

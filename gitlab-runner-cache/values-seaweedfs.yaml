@@ -1,0 +1,27 @@
+# Minimal & leicht für GitLab Runner Cache – 15 Gi Cache + 5 Gi Metadaten + Lifecycle
+master:
+  enabled: true
+  replicas: 1
+
+volume:
+  enabled: true
+  replicas: 1
+  volumeClaim:
+    size: 15Gi           # ← dein eigentlicher Cache
+    storageClass: ""     # leer = Default-StorageClass deines OCP
+
+filer:
+  enabled: true
+  replicas: 1
+  s3:
+    enabled: true
+    enableAuth: true     # erstellt automatisch Credentials
+  enablePVC: true
+  volumeClaim:
+    size: 5Gi            # ← Metadaten (reicht locker)
+
+# OpenShift-spezifisch
+securityContext:
+  enabled: true
+  runAsNonRoot: true
+  fsGroup: 1001

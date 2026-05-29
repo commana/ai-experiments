@@ -1,0 +1,23 @@
+apiVersion: apps.gitlab.com/v1beta2
+kind: Runner
+metadata:
+  name: mein-gitlab-runner
+  namespace: dein-runner-ns          # ← Deinen Namespace eintragen
+spec:
+  gitlabUrl: https://gitlab.deine-firma.de   # ← Deine GitLab Instanz
+
+  # ...
+
+  # ========================================
+  # S3 CACHE KONFIGURATION (SeaweedFS)
+  # ========================================
+  cacheType: s3
+  cacheShared: true                    # WICHTIG: Cache über alle Pods/Nodes teilen
+  cachePath: "gitlab-runner-cache"     # Optional: Unterordner im Bucket
+
+  s3:
+    server: "TODO-seaweedfs-cache-filer.TODO.svc:8333"   # ← WICHTIG: Port 8333!
+    credentials: TODO-seaweedfs-cache-filer-s3-credentials         # Secret vom Helm Chart
+    bucket: gitlab-runner-cache
+    insecure: true                     # true = intern ohne TLS
+    # location: ""                     # bei SeaweedFS meist leer lassen

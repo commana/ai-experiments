@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweedfs-set-cache-lifecycle
+  namespace: $NAMESPACE
+  annotations:
+    "helm.sh/hook": post-upgrade     # optional: läuft automatisch bei helm upgrade
+    "helm.sh/hook-weight": "10"
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: OnFailure
+      containers:
+      - name: set-lifecycle
+        image: minio/mc:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Alias anlegen
+          mc alias set seaweedfs \
+            http://${RELEASE_NAME}.${NAMESPACE}.svc:8333 \
+            "$(cat /secrets/accesskey)" \
+            "$(cat /secrets/secretkey)" \
+            --insecure
+
+          # Bucket anlegen (falls noch nicht da)
+          mc mb seaweedfs/gitlab-runner-cache --ignore-existing
+
+          # 30-Tage-Lifecycle-Policy setzen
+          mc ilm add seaweedfs/gitlab-runner-cache \
+            --expiry-days 30 \
+            --id "GitLabCache30Days"
+
+          echo "✅ Lifecycle-Policy (30 Tage) erfolgreich gesetzt!"
+        volumeMounts:
+        - name: credentials
+          mountPath: /secrets
+          readOnly: true
+      volumes:
+      - name: credentials
+        secret:
+          secretName: ${RELEASE_NAME}-filer-s3-credentials   # Secret vom Helm-Chart

@@ -15,3 +15,7 @@ output "gitlab_url" {
 output "artifactory_url" {
   value = "https://artifactory.${var.lab_domain}"
 }
+
+output "state_location" {
+  value = "Aktuell: lokal (terraform.tfstate). Siehe backend.tf für Remote-State-Optionen."
+}

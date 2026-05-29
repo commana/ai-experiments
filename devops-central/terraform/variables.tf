@@ -45,3 +45,18 @@ variable "gitlab_root_password" {
   default     = "ChangeMeStrong123!"
   sensitive   = true
 }
+
+# Optional für S3 Backend (wenn du remote state nutzt)
+variable "s3_access_key" {
+  description = "Hetzner Object Storage Access Key (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "s3_secret_key" {
+  description = "Hetzner Object Storage Secret Key (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

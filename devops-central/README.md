@@ -34,6 +34,29 @@ terraform apply \
 - **GitLab**: https://gitlab.deine-domain.de (User: root / Passwort aus Variable)
 - **Artifactory**: https://artifactory.deine-domain.de (User: admin / Passwort: password – beim ersten Login ändern!)
 
+## Terraform State Management (wichtig!)
+
+Standardmäßig speichert Terraform den State lokal (`terraform.tfstate`). Das ist für den Anfang ok, aber nicht ideal, wenn:
+
+- du von mehreren Rechnern aus arbeitest
+- du CI/CD nutzen möchtest
+- mehrere Personen am Projekt arbeiten
+
+### Empfohlene Lösungen
+
+**1. Hetzner Object Storage (S3-kompatibel, kostenloser Einstieg)**
+
+1. Bucket in Hetzner Object Storage anlegen
+2. Access Key + Secret Key erstellen
+3. In `terraform/backend.tf` den S3-Block auskommentieren und anpassen
+4. `terraform init -migrate-state` ausführen
+
+**2. Terraform Cloud (einfachste Variante, kostenlos bis 500 Ressourcen)**
+
+In `terraform/backend.tf` den Terraform Cloud Block aktivieren und `terraform init` ausführen.
+
+> Tipp: Für den persönlichen Gebrauch reicht lokaler State + regelmäßiges Backup der `.tfstate`-Datei oft aus.
+
 ## Manuelle Nachjustierung
 
 Falls du später etwas ändern willst:
@@ -45,17 +68,17 @@ nano .env
 docker compose up -d
 ```
 
-Oder das `bootstrap.sh` manuell ausführen (z.B. nach `terraform destroy` + neuem Apply).
+Oder das `bootstrap.sh` manuell ausführen.
 
 ## Kosten & Backup
 
 - Bei stundenweiser Nutzung oft < 5 €/Monat
-- Vor `terraform destroy`: Volumes sichern (siehe README im Repo)
+- Vor `terraform destroy`: Volumes sichern (siehe Backup-Skript im Repo)
 
 ## Nächste Schritte
 
-- k3d Cluster hinzufügen (`k3d cluster create devops-lab`)
+- k3d Cluster hinzufügen
 - ArgoCD + GitOps
-- Monitoring Stack
+- Monitoring Stack (Prometheus + Grafana)
 
 Viel Spaß! 🚀

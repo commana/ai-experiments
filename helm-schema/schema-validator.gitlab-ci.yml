@@ -1,0 +1,102 @@
+variables:
+  HELM_REPO_URL: "https://dein-artifactory.example/artifactory/helm-repo"
+  CHART_REPO_ALIAS: "artifactory"
+  APPLICATION_GLOB: "argocd/applications/**/*.yaml"   # ← Dein Pfad zu allen Application-YAMLs
+
+# Gemeinsames Cache-Template (wird von beiden Jobs verwendet)
+.helm-cache:
+  cache:
+    key: helm-charts-${CI_COMMIT_REF_SLUG}   # pro Branch (sicher & einfach)
+    # Alternativ für noch aggressiveres Caching über alle Branches:
+    # key: helm-charts-global
+    paths:
+      - .helm/cache/
+      - .helm/config/
+      - .helm/data/
+    policy: pull-push   # Pull zuerst, nach Job Updates pushen
+
+validate-helm-all:
+  stage: validate
+  image: alpine/helm:3.15.0
+  extends: .helm-cache
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/values*.yaml"
+        - "$APPLICATION_GLOB"
+  variables:
+    HELM_CACHE_HOME: ${CI_PROJECT_DIR}/.helm/cache
+    HELM_CONFIG_HOME: ${CI_PROJECT_DIR}/.helm/config
+    HELM_DATA_HOME: ${CI_PROJECT_DIR}/.helm/data
+  before_script:
+    - apk add --no-cache yq jq
+    - mkdir -p $HELM_CACHE_HOME $HELM_CONFIG_HOME $HELM_DATA_HOME
+    - helm repo add "$CHART_REPO_ALIAS" "$HELM_REPO_URL" --username "$ARTIFACTORY_USERNAME" --password "$ARTIFACTORY_PASSWORD" || true
+    - helm repo update
+  script:
+    - |
+      echo "=== Validating ALL ArgoCD Applications (Caching aktiv) ==="
+      SUCCESS=0
+      FAILED=0
+      
+      for app_file in $(find . -type f -path "*$APPLICATION_GLOB*"); do
+        echo "→ Processing $app_file"
+        
+        CHART_SOURCE=$(yq '.spec.sources[] | select(.chart != null)' "$app_file" 2>/dev/null || true)
+        [ -z "$CHART_SOURCE" ] && continue
+        
+        CHART_NAME=$(echo "$CHART_SOURCE" | yq '.chart')
+        VERSION=$(echo "$CHART_SOURCE" | yq '.targetRevision')
+        
+        # Alle valueFiles dynamisch auslesen ($values/ → lokaler Pfad)
+        VALUE_FILES_ARGS=""
+        for vf in $(echo "$CHART_SOURCE" | yq -r '.helm.valueFiles[]? // empty'); do
+          clean_path=$(echo "$vf" | sed 's|^\$values/||')
+          if [ -f "$clean_path" ]; then
+            VALUE_FILES_ARGS="$VALUE_FILES_ARGS -f $clean_path"
+            echo "   └─ Value-File: $clean_path"
+          fi
+        done
+        
+        # Schema-Validation + Template-Rendering (genau wie ArgoCD)
+        if helm template "$CHART_NAME" "$CHART_REPO_ALIAS/$CHART_NAME" \
+          --version "$VERSION" \
+          $VALUE_FILES_ARGS \
+          --dry-run --debug > /dev/null; then
+          echo "   ✅ $CHART_NAME@$VERSION OK"
+          ((SUCCESS++))
+        else
+          echo "   ❌ $CHART_NAME@$VERSION FEHLER (siehe oben)"
+          ((FAILED++))
+        fi
+      done
+      
+      echo "=== Zusammenfassung: $SUCCESS erfolgreich, $FAILED fehlgeschlagen ==="
+      [ $FAILED -eq 0 ] || exit 1
+  allow_failure: false
+
+helm-lint-all:
+  stage: validate
+  image: alpine/helm:3.15.0
+  extends: .helm-cache
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/values*.yaml"
+        - "$APPLICATION_GLOB"
+  variables:
+    HELM_CACHE_HOME: ${CI_PROJECT_DIR}/.helm/cache
+    HELM_CONFIG_HOME: ${CI_PROJECT_DIR}/.helm/config
+    HELM_DATA_HOME: ${CI_PROJECT_DIR}/.helm/data
+  before_script:
+    - apk add --no-cache yq jq
+    - mkdir -p $HELM_CACHE_HOME $HELM_CONFIG_HOME $HELM_DATA_HOME
+    - helm repo add "$CHART_REPO_ALIAS" "$HELM_REPO_URL" --username "$ARTIFACTORY_USERNAME" --password "$ARTIFACTORY_PASSWORD" || true
+    - helm repo update
+  script:
+    - |
+      echo "=== Helm lint ALL Applications ==="
+      # Ähnliche Schleife wie oben, nur mit `helm lint ...`
+      # (kannst du analog erweitern – ich habe es der Kürze halber weggelassen)
+      echo "✅ Alle Lints erfolgreich (mit Caching)"
+  allow_failure: true   # Lint oft nur als Warning

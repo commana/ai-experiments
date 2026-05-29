@@ -1,0 +1,71 @@
+# {{ schema.title | default("Helm Chart Values") }}
+
+{% if schema.description %}
+{{ schema.description }}
+{% endif %}
+
+**Generiert aus `values.schema.json`** mit [json-schema-for-humans](https://github.com/coveooss/json-schema-for-humans)
+
+---
+
+## Inhaltsverzeichnis
+
+{% for prop in schema.properties_recursive %}
+- [{{ prop.full_name }}](#{{ prop.full_name | lower | replace('.', '-') | replace('_', '-') }})
+{% endfor %}
+
+---
+
+## Konfiguration
+
+{% for prop in schema.properties_recursive %}
+
+### {{ prop.full_name }}
+
+**Typ:** `{{ prop.type | join(" | ") if prop.type is iterable else prop.type }}`  
+**Erforderlich:** {{ prop.required | yesno("✅ Ja", "❌ Nein") }}  
+
+{% if prop.default is defined %}
+**Standardwert:**
+```yaml
+{{ prop.default | to_yaml(indent=2) }}
+```
+{% endif %}
+
+{{ prop.description | default("*Keine Beschreibung verfügbar.*") }}
+
+{% if prop.examples %}
+**Beispiele:**
+```yaml
+{% for example in prop.examples %}
+{{ example | to_yaml(indent=2) }}
+{% endfor %}
+```
+{% endif %}
+
+{% if prop.enum %}
+**Erlaubte Werte:**
+{% for value in prop.enum %}
+- `{{ value }}`
+{% endfor %}
+{% endif %}
+
+{% if prop.minimum is defined or prop.maximum is defined %}
+**Wertebereich:**
+{% if prop.minimum is defined %}Minimum: `{{ prop.minimum }}`{% endif %}
+{% if prop.maximum is defined %}Maximum: `{{ prop.maximum }}`{% endif %}
+{% endif %}
+
+{% if prop.pattern %}
+**Regex-Muster:** `{{ prop.pattern }}`
+{% endif %}
+
+---
+
+{% endfor %}
+
+## Hinweise
+
+- Dieses Dokument wurde automatisch aus dem JSON Schema generiert.
+- Für komplexe Objekte (z.B. `ingress`, `resources`, `persistence`) sind die Eigenschaften rekursiv aufgelistet.
+- Empfohlen: Zusätzlich eine `values.yaml` mit guten Defaults im Chart bereitstellen.
